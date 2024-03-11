@@ -51,11 +51,31 @@ func omitEmptyInterface(val interface{}) interface{} {
 		valReflect = valReflect.Elem()
 	}
 
-	if valReflect.Kind() == reflect.Struct || valReflect.Kind() == reflect.Map {
-		return OmitEmptyFields(val)
+	switch valReflect.Kind() {
+	case reflect.Struct:
+		return omitEmptyFieldsStruct(valReflect)
+	case reflect.Map:
+		return omitEmptyMap(valReflect.Interface().(map[string]interface{}))
+	default:
+		return val
+	}
+}
+
+func omitEmptyFieldsStruct(valReflect reflect.Value) interface{} {
+	result := make(map[string]interface{})
+
+	for i := 0; i < valReflect.NumField(); i++ {
+		field := valReflect.Type().Field(i)
+		fieldValue := valReflect.Field(i)
+
+		newValue := OmitEmptyFields(fieldValue.Interface()) // Recursively call for nested structures
+
+		if !isEmptyValue(newValue) {
+			result[strings.ToLower(field.Name)] = newValue
+		}
 	}
 
-	return val
+	return result
 }
 
 // Function to check if a value is considered empty (modify as needed)
@@ -77,7 +97,40 @@ func isEmptyValue(v interface{}) bool {
 	}
 }
 
-func main() {
+type TestStruct struct {
+	Name     string
+	Age      int
+	Email    string
+	Nullable *string
+	EmptyMap map[string]interface{}
+}
+
+func test1() {
+	// Example usage with a struct
+	data := TestStruct{
+		Name:     "John",
+		Age:      30,
+		Email:    "   ", // Whitespace string
+		Nullable: nil,
+		EmptyMap: map[string]interface{}{},
+	}
+
+	// Process the struct with OmitEmptyFields
+	processedData := OmitEmptyFields(data)
+
+	// Print the resulting data (without empty fields)
+	fmt.Println(InterfaceToString(processedData))
+}
+
+func InterfaceToString(data interface{}) string {
+	manifestJson, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return fmt.Sprintf("%v", data)
+	}
+	return string(manifestJson)
+}
+
+func test2() {
 	// Example usage with your interface structure (including whitespace strings)
 	data := map[string]interface{}{
 		"addons": []interface{}{
@@ -117,10 +170,7 @@ func main() {
 	fmt.Println(InterfaceToString(processedData))
 }
 
-func InterfaceToString(data interface{}) string {
-	manifestJson, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		return fmt.Sprintf("%v", data)
-	}
-	return string(manifestJson)
+func main() {
+	test1()
+	test2()
 }
