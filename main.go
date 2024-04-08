@@ -7,25 +7,26 @@ import (
 	"strings"
 )
 
-func OmitEmptyFields(data interface{}) interface{} {
+// Modify your function to accept an additional bool parameter
+func OmitEmptyFields(data interface{}, omitBool bool) interface{} {
 	switch t := data.(type) {
 	case map[string]interface{}:
-		return omitEmptyMap(t)
+		return omitEmptyMap(t, omitBool)
 	case []interface{}:
-		return omitEmptySlice(t)
+		return omitEmptySlice(t, omitBool)
 	case interface{}:
-		return omitEmptyInterface(t)
+		return omitEmptyInterface(t, omitBool)
 	default:
 		return data
 	}
 }
 
-func omitEmptyMap(val map[string]interface{}) map[string]interface{} {
+func omitEmptyMap(val map[string]interface{}, omitBool bool) map[string]interface{} {
 	result := make(map[string]interface{})
 
 	for key, value := range val {
-		newValue := OmitEmptyFields(value) // Recursively call for nested structures
-		if !isEmptyValue(newValue) {
+		newValue := OmitEmptyFields(value, omitBool) // Pass omitBool through
+		if !isEmptyValue(newValue, omitBool) {
 			result[strings.ToLower(key)] = newValue
 		}
 	}
@@ -33,19 +34,19 @@ func omitEmptyMap(val map[string]interface{}) map[string]interface{} {
 	return result
 }
 
-func omitEmptySlice(val []interface{}) []interface{} {
+func omitEmptySlice(val []interface{}, omitBool bool) []interface{} {
 	result := []interface{}{}
 
 	for _, v := range val {
-		if !isEmptyValue(v) {
-			result = append(result, OmitEmptyFields(v))
+		if !isEmptyValue(v, omitBool) {
+			result = append(result, OmitEmptyFields(v, omitBool)) // Pass omitBool through
 		}
 	}
 
 	return result
 }
 
-func omitEmptyInterface(val interface{}) interface{} {
+func omitEmptyInterface(val interface{}, omitBool bool) interface{} {
 	valReflect := reflect.ValueOf(val)
 	if valReflect.Kind() == reflect.Ptr {
 		valReflect = valReflect.Elem()
@@ -53,24 +54,24 @@ func omitEmptyInterface(val interface{}) interface{} {
 
 	switch valReflect.Kind() {
 	case reflect.Struct:
-		return omitEmptyFieldsStruct(valReflect)
+		return omitEmptyFieldsStruct(valReflect, omitBool) // Pass omitBool through
 	case reflect.Map:
-		return omitEmptyMap(valReflect.Interface().(map[string]interface{}))
+		return omitEmptyMap(valReflect.Interface().(map[string]interface{}), omitBool) // Pass omitBool through
 	default:
 		return val
 	}
 }
 
-func omitEmptyFieldsStruct(valReflect reflect.Value) interface{} {
+func omitEmptyFieldsStruct(valReflect reflect.Value, omitBool bool) interface{} {
 	result := make(map[string]interface{})
 
 	for i := 0; i < valReflect.NumField(); i++ {
 		field := valReflect.Type().Field(i)
 		fieldValue := valReflect.Field(i)
 
-		newValue := OmitEmptyFields(fieldValue.Interface()) // Recursively call for nested structures
+		newValue := OmitEmptyFields(fieldValue.Interface(), omitBool) // Pass omitBool through
 
-		if !isEmptyValue(newValue) {
+		if !isEmptyValue(newValue, omitBool) {
 			result[strings.ToLower(field.Name)] = newValue
 		}
 	}
@@ -78,18 +79,18 @@ func omitEmptyFieldsStruct(valReflect reflect.Value) interface{} {
 	return result
 }
 
-// Function to check if a value is considered empty (modify as needed)
-func isEmptyValue(v interface{}) bool {
-	// Expand this logic to handle additional types within the interface if needed
+// Modify isEmptyValue to accept the omitBool parameter
+func isEmptyValue(v interface{}, omitBool bool) bool {
 	switch t := v.(type) {
 	case nil:
 		return true
 	case string:
-		return strings.TrimSpace(t) == "" // Use type assertion for string type
+		return strings.TrimSpace(t) == ""
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
 		return t == 0
 	case bool:
-		return !t
+		// If omitBool is true, omit the field if it's false
+		return omitBool && !t
 	case map[string]interface{}:
 		return len(t) == 0
 	default:
@@ -116,7 +117,7 @@ func test1() {
 	}
 
 	// Process the struct with OmitEmptyFields
-	processedData := OmitEmptyFields(data)
+	processedData := OmitEmptyFields(data, false)
 
 	// Print the resulting data (without empty fields)
 	fmt.Println(InterfaceToString(processedData))
@@ -146,7 +147,7 @@ func test2() {
 					"resources":   map[string]interface{}{},
 					"revision":    "0",
 					"status":      "",
-					"version":     "",
+					"version":     false,
 				},
 				"error":       "",
 				"error_code":  "",
@@ -164,7 +165,7 @@ func test2() {
 	}
 
 	// Process the interface with OmitEmptyFields
-	processedData := OmitEmptyFields(data)
+	processedData := OmitEmptyFields(data, false)
 
 	// Print the resulting data (without empty fields)
 	fmt.Println(InterfaceToString(processedData))
